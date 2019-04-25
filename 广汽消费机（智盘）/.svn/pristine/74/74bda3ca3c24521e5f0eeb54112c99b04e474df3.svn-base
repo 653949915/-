@@ -1,0 +1,329 @@
+
+
+#include "head.h"
+
+//#include <string.h>
+
+//要写入到24c02的字符串数组
+const u8 TEXT_Buffer[]={0x01,0x02,0x03,0x04,0x05,0x06};
+
+ unsigned char TEXTFLASH_Buffer[]={"123456"};
+ unsigned char TEXTFLASH_RXBuffer[6];
+ 
+u8 text123[4]={0X01,0X02,0X03,0X04};
+
+#define IIC_SIZE sizeof(TEXT_Buffer)	
+
+
+/*********************硬件初始化******************************/
+void InitSystemHardware(void)
+{
+
+	delay_init();	    	     //延时函数初始化	 
+
+	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2); //设置NVIC中断分组2:2位抢占优先级，2位响应优先级
+	
+	uart_init(USART1BOUND);	 //串口1初始化为115200	     4G模块在用	
+	
+	uart2_init(USART2BOUND); //串口2初始化为9600	       485在用
+	
+	uart3_init(USART3BOUND); //串口3初始化为9600	      二维码读头在用
+	
+	#ifdef   WISDOM_PLATE     //是智盘
+	uart4_init(USART4BOUND); //串口4初始化为19200	      智盘232在用
+	#endif	
+	
+	TIM3_Int_Init(TIM3ARR,TIM3PSC);//10Khz的计数频率，计数到5000为500ms   
+	
+	TIM7_Int_Init(99,7199);       //10Khz的计数频率，计数到99为10ms 
+	
+ 	LED_Init();			         //LED端口初始化
+	
+//	KEY_Init();              //初始化与按键连接的硬件接口
+	
+	BEEP_Init();             //蜂鸣器接口初始化	 
+	
+	RELAY_Init();            //继电器接口初始化
+	
+	#ifdef WITH_RC522_FUNC    //带RC522功能
+	RC522_Init ();           //RC522模块所需外设的初始化配置	 
+	#endif	
+	
+	AT24CXX_Init();		       //IIC初始化  
+	
+	AT24CXX_2_Init();		     //IIC2初始化  
+	
+	DS1302_Init();           //DS1302接口初始化
+	
+  SPI_Flash_Init();  		   //SPI FLASH 初始化 	  
+	
+  RS485_Init();            //485 初始化 	
+		 
+//	OLED_Init();             //初始化OLED  
+	EXTIX_Init_WG1();		 	   //WG读头1外部中断初始化
+	
+	EXTIX_Init_WG2();		 	   //WG读头1外部中断初始化	
+			
+  W5500_SYSTEM_Init();     //W5500外设初始化
+	
+	SYSREST_KEY_Init();      //恢复出厂设置按钮初始化
+
+  EC20_REST_Init();        //4G模块复位初始化
+
+	TM16_INIT(6);           //按键芯片初始化
+
+  SPEAK_USART_TX_init();
+	
+	LCD_Config();
+	
+	LCD_Init();
+	
+	TimeDelay(10);
+	
+	SPI_BLK_SET();
+	
+	SetBG_Color(LCD_DARK);//
+	
+	TimeDelay(10);
+	
+	ClrScreen();
+	
+	delay_ms(10);
+	
+	DrawIcon(0,0,0);	
+	
+ // SYN6288_Send(0X01 ,0X00 , "科坦电子" ,8);
+		
+} 
+ 
+
+
+
+
+/***************器件自检**********************/
+void Hardware_SelfTest(void)
+			{
+
+					AT24C256Check();   //检测AT24c256器件					
+
+			}
+
+/******************系统参数初始化********************************/
+void InitSystemParameter(void)
+		{
+		
+			InitTcpClient();
+
+			InitOutput();            //开门状态初始化
+			
+			InitSysvar();            //初始化系统参数、扩展参数 		
+			
+			InitRecord();            //初始记录存储个数 		
+			
+			InitMachno();            //读取机号
+			
+			InitPassword();          //初始化读写扇区与密码
+			
+			InitName();              //公共区名单数	
+					
+			Initnewdate_addr();      // 初始化新增数据起始地址参数 	
+						
+			InitCombuff();		       //串口缓冲区初始化
+	
+			InitTime_Interval_Detection();   //初始化门禁时段
+			
+			InitPassage_Time();              //初始化通道时段
+			
+			InitPassage_TimeEnable();        //通道使能初始化	
+			
+			InitHoliday_Vacations();         //初始化节假日	
+			
+			InitEC20Combuff();               //EC20串口初始化			
+					
+			Init_UpdataRecord();             //初始化实时未上传记录存储个数 
+			
+			Init_Heartbeat();                //发送心跳变量初始化
+			
+			Init_EC20_Remote_IP();           //初始化4G远端IP端口
+			
+			InitVolume();                    //初始化音量大小
+			
+			InitOperation_CommCount();       //初始操作命令数量
+
+      InitActual_CardCount();          //初始化实际数卡数量			
+				
+			InitErr_CardCount();             //初始化错误数卡数量
+			
+			InitFixed_consumption_Money();   //初始化定值扣费金额
+			
+      InitFixed_consumption_Timer();   //初始化定值扣费时段
+			
+			InitConsumption_All_Money();     //初始化消费总额
+
+      InitCarte_consum_Money();        //初始化菜单扣费金额
+
+	    InitSub_Maximum_Limit();        //初始化当次消费限额
+			
+			InitRecordcount_Err();         //初始存储错误
+	}
+	
+	
+ int main(void)
+ {		
+	 
+	 
+	 SystemInit();
+	 
+	 SCB->VTOR = FLASH_BASE | 0x6000; /* Vector Table Relocation in Internal FLASH. */ //此处的地址要和APP程序起始地址一样
+	 
+	 	__set_PRIMASK(0); //开放总中断
+	 
+   InitSystemHardware();            //系统硬件初始化 
+//    
+	 Hardware_SelfTest();             //器件自检
+	 
+	 InitSystemParameter();           //系统参数初始化
+
+ //   AT24CXX_2_Write1(GROUP_ST,(u8*)textiicbuff,130);  //32676    24c256写
+//    AT24CXX_2_Read(GROUP_ST,textrxiicbuff,130);      //         24c256读 
+	                                                                                                                                 
+	// CheckInit();                     //检查恢复出厂设置按钮
+	 
+	 LED0=LED1=LED2=1;
+
+	 IWDG_Init(5,3125);            //放狗   与分频数为128,重载值为3125,溢出时间为10s	 
+	 
+	 Beep(3, SHORT_BEEP); 
+	 
+	 QuectelEC20_Rest();		    //复位4G模块	
+
+   fun5();
+
+	 Clear_IAP_OK_System_Boot();   //清除固件更新标志
+
+ 	while(1)
+	{
+		IWDG_Feed();//喂狗
+
+		AnalyzeWorkStatus(); //工作状态分析
+		 			 
+		if (output1time > (output_time[0] * SECOND_CYCLE)) //如果开门时间5S后关门
+				{ 									
+					EndOutput1();
+									
+				}    
+					
+		if (output2time > (output_time[0] * SECOND_CYCLE)) //如果开门时间5S后关门
+				{ 									
+					EndOutput2();
+				}  
+				
+												
+//		if(Check_Passage_Enable())	        //通道使能检查
+//			{
+//				Channel_Time_Detection();       //通道时段检查
+//				
+//				if(bChannel==1)
+//					{
+////					BeginOutput1();
+//					output1time=0;				
+//					}
+//			}
+			
+//			Consum_Time_Detection();      //消费时段检查
+				
+//		if( uploadflash_cycle > MINUTE_CYCLE )		//保存实时未上传记录
+//			{
+//				uploadflash_cycle=0;
+//			
+//				 Add_UpdataRecord(1);
+//			}
+				
+		if( kt_beat_info.count > SECOND_CYCLE * 30 )		//发送心跳
+			{
+				kt_beat_info.count=0;
+			
+				Heartbeat_Send(4);                     //发送数据
+				
+				if(kt_beat_info.err >= 2)	             //发送没返回
+					{											
+						QuectelEC20_Rest();		            //复位模块	
+				
+						Beep(1, SHORT_BEEP); 
+						kt_beat_info.err =0;
+					}
+				else
+				kt_beat_info.err ++;						
+			}	
+						
+	
+	  Menu_key_set();
+	
+//#ifdef   WISDOM_PLATE    //是智盘
+
+//#else		
+//			
+//			if(Enable_Pay_Card)
+//			{
+//				CheckCard();    //检查读卡 	
+//			}
+//#endif						
+	
+	
+			
+		ProcessRS485(); //处理485通讯	
+				
+//		W5500_System_Program();    
+			
+		Process4G_Commu();     //处理4G通讯
+			
+		QuectelEC20_Network_Init(0);		
+		
+	  //RS485_Send_One_Data(0X16);//集中发送				
+
+    //	ec20sufatest();		
+
+//#ifdef   WISDOM_PLATE     //是智盘
+
+//#else		     //不是智盘
+
+//#endif	
+ 		
+		
+//#ifdef   WISDOM_PLATE     //是智盘
+
+ 	  Process_Wisdom_plate();       //处理智盘串口通讯	
+
+//	  Process_Wisdom_plate_Card();
+
+//#else		     //不是智盘
+//			
+////	  ProcessReal_time_upload();	     // 处理实时上传返回			
+//			
+//#endif	
+
+     ProcessReal_time_upload();	     // 处理实时上传返回	
+			
+     CheckInit();                     //检查恢复出厂设置按钮
+		 
+	//	  suijishu();
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
