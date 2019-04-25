@@ -1,0 +1,7 @@
+syscomm.c  :系统共用函数
+
+COMCMD.C   ：串口通讯处理函数
+
+keufun.C   ：按键处理函数
+
+AT24C256   :AT24C256的地址等处理函数
